@@ -1,0 +1,362 @@
+<!doctype html>
+
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <base href="/">
+    <title>Url Parse</title>
+    <meta name="description" content="">
+    <meta name="viewport" content="width=device-width">
+    <link rel="stylesheet" href="https://ajax.googleapis.com/ajax/libs/angular_material/0.8.2/angular-material.min.css">
+</head>
+
+<body ng-app="urlTesting">
+    <div class="container" ng-controller="testControl">
+        <div class="row">
+            <md-toolbar>
+                <div class="md-toolbar-tools">
+                    <span>Multi-State</span>
+                    <span flex></span>
+                    <md-button>Right Bar Button</md-button>
+                </div>
+            </md-toolbar>
+        </div>
+        <div class="row">
+            <!--   <md-tabs md-selected="selected.tabs" md-stretch-tabs="always">
+                <md-tab label="Main nav" md-on-select="tabClickedStall()">
+                    <div>DISPLAY TREE HERE</div>
+                </md-tab>
+
+                <md-tab label="Second nav" md-on-select="tabClickedStall()" >
+                    <div>
+    
+                        <md-select ng-model="selected.select" ng-change="tabClicked()">
+                          <md-select-label>Select a state</md-select-label>
+                          <md-option ng-value="opt" ng-repeat="opt in selectTest">{{ opt }}</md-option>
+                        </md-select>
+
+                    </div>
+
+                </md-tab>
+
+                <md-tab label="Graph" md-on-select="tabClickedStall()">
+                    <div>WHAT IS THIS GRAPH TAB ABOUT?</div>
+                </md-tab>
+
+                <md-tab label="Instructor" md-on-select="tabClickedStall()">
+                    <div>Resources for instructors</div>
+                </md-tab>
+
+                <md-tab label="Student" md-on-select="tabClickedStall()">
+                    <div>Resources for students</div>
+                </md-tab>
+            </md-tabs>
+
+             <md-radio-group ng-model="selected.radio" ng-change="tabClicked()">
+              <md-radio-button value="Apple">Apple</md-radio-button>
+              <md-radio-button value="Banana"> Banana </md-radio-button>
+              <md-radio-button value="Mango">Mango</md-radio-button>
+            </md-radio-group> -->
+
+            <md-button class="md-raised md-primary" ng-click="clickChange()">{{timeTest}}</md-button>
+            <md-button class="md-raised md-primary" ng-click="addSecond()">Add second module to url</md-button>
+        </div>
+    </div>
+    <!-- Scripts here -->
+    <!-- vendor scripts -->
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.2/angular.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/underscore.js/1.8.2/underscore-min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.2/angular-animate.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.3.2/angular-aria.min.js"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/angular_material/0.8.2/angular-material.min.js"></script>
+    <!-- End scripts -->
+    <script>
+    $moduleObjectProvider.$inject = [];
+
+    function $moduleObjectProvider() {
+        var currentModules = {};
+
+        //outer closure to inject "this"
+        function outerAddState(moduleObj) {
+            return function(stateName, stateOptions) {
+                //check if already has
+                var checkState = _.chain(moduleObj)
+                    .result('states')
+                    .has(stateName)
+                    .value();
+                if (checkState) {
+                    moduleObj.states[stateName] = moduleObj.states[stateName].concat(stateOptions.filter(function(item) {
+                        return moduleObj.states[stateName].indexOf(item) < 0;
+                    }));
+                    return moduleObj;
+                } else {
+                    var newObj = {}
+                    newObj[stateName] = stateOptions;
+                    _.extend(moduleObj.states, newObj);
+                    //_.extend(this.states, newObj);
+                    return moduleObj;
+                }
+            }
+        };
+
+        //outer function so we can push into module (closure)
+        function modulePush(currentModule, name) {
+            var tempMod = {};
+            tempMod[name] = currentModule;
+            _.extend(currentModules, tempMod);
+        }
+
+        /*
+        * Module Object constructor
+        */
+        this.moduleConstructor = function(name, cb) {
+            if (currentModules[name]) {
+                //throw error
+                $log.warn(name + " module already exists.");
+            } else {
+                this.states = [];
+                this.callback = cb;
+                this.currentState = {};
+                this.addState = outerAddState(this);
+                modulePush(this, name);
+            }
+        }
+
+        this.$get = $get;
+        $get.$inject = ['checkUrl', '$log', '$location'];
+
+        function $get(checkUrl, $log, $location) {
+            return {
+                /*
+                * Requesting state change
+                * check if module exists, if doesnt check for 5 more seconds
+                * if does exist  - send information to state prep to prepare for url change
+                */
+                goState: function(name, stateName, options) {
+                    if (currentModules[name]) {
+                        this.prepState(name, stateName, options);
+                    } else {
+                        //module cannot be found check for 5 seconds 
+                        $log.warn("Requesting " + name + "...");
+                        var timeToCheck = true;
+                        setTimeout(function() {
+                            timeToCheck = false;
+                        }, 5000);
+                        var check = {
+                            init: function() {
+                                check.check_again();
+                            },
+                            check_again: function() {
+                                if (timeToCheck) {
+                                    if (currentModules[name]) {
+                                        //by some act of god, this module exists now
+                                        prepState(name, stateName, options);
+                                    } else {
+                                        //still doesn't exists
+                                        setTimeout(check.check_again, 200);
+                                    }
+                                } else {
+                                    //doesn't exist after 5 seconds
+                                    $log.error("Requested module (" + name + ") could not be found at this time.");
+                                }
+                            }
+                        }
+                        check.init();
+                    }
+                },
+                /*
+                * Prep the state to be sent to url
+                * also sets currentState in provider if can be prepped
+                */
+                prepState: function(name, stateName, options) {
+                    if (currentModules[name].states[stateName]) {
+                        //set currentstate to same string as url for easy comparrisons
+                        var setCurrent = {},
+                            setNew = {},
+                            setSub = {};
+                            name = decodeURIComponent(name);
+
+                        if (options.length > currentModules[name].states[stateName].length) {
+                            $log.error("Requesting more state variables than have been assigned");
+                        } else {
+                            setSub[stateName] = options;
+                            setCurrent[name] = setSub;
+                            setNew = checkUrl.parseObjectToUrl(setCurrent);
+                            //extra layer to check if you are requesting a goState and nothing has changed
+                            if (currentModules[name].currentState != setNew[encodeURIComponent(name)]) {
+                                currentModules[name].currentState = setNew[encodeURIComponent(name)];
+                                var stateIs = _.object(currentModules[name].states[stateName], options);
+                                checkUrl.requestUrl(name, stateName, options);
+                                currentModules[name].callback(stateName, stateIs);
+                            } else {
+                                $log.info("Requesitng state identical to current state.");
+                            }
+                        }
+                    } else {
+                        //throw error
+                        $log.error("Requested Module exists, but state does not.");
+                    }
+                },
+                modules: function() {
+                    return currentModules;
+                }
+            }
+        }
+    }
+
+    angular.
+    module('urlTesting', ['ngMaterial'])
+        .provider("$moduleObject", $moduleObjectProvider)
+        .config(function($moduleObjectProvider) {
+            /* 
+            *  test callback - can set this to a factory/service to handle changes to control as needed
+            *  @name - name of state
+            *  @Obj - array of state params
+            */
+            var callback = function(name, obj) {
+                console.log(name, obj);
+            }
+
+            var mod = new $moduleObjectProvider.moduleConstructor("module1,", callback)
+                .addState("calender", ["day", "week", "month"]);
+
+            var mod2 = new $moduleObjectProvider.moduleConstructor("module2", callback)
+                .addState("answers", ["answer1", "answer2", "answer3"]);
+
+        })
+        .run(function($rootScope, $location, $moduleObject, checkUrl) {
+            /*
+            * Listener for url change
+            * mostly to handle if someone modifies url by hand, or first landing (ie. - sent link/bookmark)
+            */
+            $rootScope.$on('$locationChangeSuccess', function(event) {
+
+                var currentUrl = $location.search();
+                var modules = $moduleObject.modules();
+
+                //loop through current url, if has nothing we forgo
+                for (urlObj in currentUrl) {
+                    var moduleOb = decodeURIComponent(urlObj);
+                    //check if modules contains this module
+                    if (modules[moduleOb] != undefined) {
+                        if (currentUrl[urlObj] == modules[moduleOb].currentState) {
+                            //is same, do nothing
+                        } else {
+                            //is changed, fire gostate
+                            var newOb = {};
+                            newOb = checkUrl.parseObjectFromUrl(currentUrl[urlObj]);
+                            for (i in newOb) {
+                                $moduleObject.goState(moduleOb, i, newOb[i]);
+                            }
+                        }
+                    } else {
+                        //is not in modules, this will fire the 5 second check
+                        var newObj = {};
+                        newObj = checkUrl.parseObjectFromUrl(currentUrl[urlObj]);
+                        for (i in newObj) {
+                            $moduleObject.goState(moduleOb, i, newObj[i]);
+                        }
+                    }
+                }
+            });
+
+        })
+        .factory('checkUrl', function($location) {
+            //factory for dealing with url
+            return {
+                /*
+                * Request the url change
+                * checks if current url is empty first
+                */
+                requestUrl: function(name, stateName, options) {
+                    currentUrl = $location.search();
+
+                    if (Object.keys(currentUrl).length > 0) {
+
+                        var temp = {},
+                            temp2 = {};
+                        temp[stateName] = options;
+                        temp2[name] = temp;
+                        temp2 = this.parseObjectToUrl(temp2);
+                        _.extend(currentUrl, temp2);
+                        $location.search(currentUrl);
+
+                    } else {
+                        //doesnt exist yet
+                        var temp = {},
+                            subTemp = {};
+                        subTemp[stateName] = options;
+                        temp[name] = subTemp;
+                        $location.search(this.parseObjectToUrl(temp));
+                    }
+                },
+                /*
+                * Encode/parse object to format for URL ($location.search())
+                */
+                parseObjectToUrl: function(obj) {
+                    for (i in obj) {
+
+                        for (p in obj[i]) {
+                            var decodeModule = encodeURIComponent(decodeURIComponent(i));
+                            var newObj = {};
+                            var newStr = "";
+                            var frontOf = encodeURIComponent(p);
+                            var backOf = ""
+                                //needs work
+                            var lastItem = obj[i][p][obj[i][p].length - 1];
+                            for (y in obj[i][p]) {
+
+                                if (obj[i][p][y] == lastItem) {
+                                    //replace ","
+                                    backOf += encodeURIComponent(decodeURIComponent(obj[i][p][y]));
+                                } else {
+                                    backOf += encodeURIComponent(decodeURIComponent(obj[i][p][y])) + ",";
+                                }
+                            };
+                            newStr = frontOf + "," + backOf;
+                            newObj[decodeModule] = newStr;
+                        }
+                    }
+                    return newObj;
+                },
+                /*
+                * Decode/parse from URL format to object
+                */
+                parseObjectFromUrl: function(url) {
+                    //parse segment from url so we can call a gostate in the locationchange
+                    var parseURL = {};
+                    var tempSplit = url.split(",");
+                    var objKey = decodeURIComponent(tempSplit[0]);
+                    var objValue = tempSplit.slice(1);
+                    for (i in objValue) {
+                        decodeURIComponent(i);
+                    }
+                    parseURL[objKey] = objValue;
+                    return parseURL;
+                }
+            }
+        })
+
+    .controller("testControl", function($scope, $moduleObject) {
+        $scope.timeTest = "yes";
+
+        $scope.clickChange = function() {
+            if ($scope.timeTest === "yes") {
+                $scope.timeTest = "no";
+                $moduleObject.goState("module1,", "calender", ["23,", "2", "12+-1=9aj"]);
+                //moduleOb.goState("module2", "mod3", [{"hours" : 5}, {"weeks" : 5}, {"days" : 1 }] );
+            } else {
+                $scope.timeTest = "yes";
+                $moduleObject.goState("module1,", "calender", ["5", "1", "4"]);
+            }
+        }
+
+        $scope.addSecond = function() {
+            $moduleObject.goState("module2", "answers", ["yes", "no", "maybe"]);
+        }
+
+    });
+    </script>
+</body>
+
+</html>
